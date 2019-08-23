@@ -1,6 +1,5 @@
-require "train"
-
 require "rubyserial"
+require "train"
 
 module TrainPlugins
   module Serial
@@ -24,10 +23,6 @@ module TrainPlugins
         @session = nil
       end
 
-      def login_command
-        "terminal pager 0\n"
-      end
-
       def uri
         "serial://#{@options[:port]}/#{@options[:baud]}"
       end
@@ -35,7 +30,7 @@ module TrainPlugins
       def run_command_via_connection(cmd, &data_handler)
         reset_session if session.closed?
 
-        logger.info format("[Serial] Sending command to %s", @options[:device])
+        logger.debug format("[Serial] Sending command to %s", @options[:device])
         exit_status, stdout, stderr = execute_on_channel(cmd, &data_handler)
 
         CommandResult.new(stdout, stderr, exit_status)
@@ -46,21 +41,48 @@ module TrainPlugins
         stderr = ""
         exit_status = 0
 
+        if @options[:debug_serial]
+          logger.debug "[Serial] => #{cmd}\n"
+        end
+
         session.write(cmd + "\n")
 
         retries = 0
         loop do
           chunk = session.read(@options[:buffer_size])
           if chunk.empty?
-            logger.debug format("[Serial] Buffering on %s (attempt %d/%d, %d bytes received)", @options[:device], retries, @options[:buffer_retries], stdout.size)
+            if @options[:debug_serial]
+              logger.debug format("[Serial] Buffering on %s (attempt %d/%d, %d bytes received)", @options[:device], retries + 1, @options[:buffer_retries], stdout.size)
+            end
             retries += 1
             sleep @options[:buffer_wait] / 1000.0
           else
             retries = 0
           end
-          break if retries > @options[:buffer_retries]
+          break if retries >= @options[:buffer_retries]
 
           stdout << chunk
+        end
+
+        # Remove \r in linebreaks
+        stdout.delete!("\r")
+
+        if @options[:debug_serial]
+          logger.debug "[Serial] <= '#{stdout}'"
+        end
+
+        # Extract command output only (no leading/trailing prompts)
+        unless @options[:raw_output]
+          stdout = stdout.match(/#{Regexp.quote(cmd.strip)}\n(.*?)\n#{@options[:prompt_pattern]}/m)&.captures&.first
+        end
+        stdout = "" if stdout.nil?
+
+        # Simulate exit code and stderr
+        errors = stdout.match(/^(#{@options[:error_pattern]})/)
+        if errors
+          exit_status = 1
+          stderr = errors.captures.first
+          stdout.gsub!(/^#{@options[:error_pattern]}/, "")
         end
 
         [exit_status, stdout, stderr]
@@ -82,6 +104,7 @@ module TrainPlugins
 
         unless @options[:setup].empty?
           logger.debug format("[Serial] Sending setup command to %s", @options[:device])
+
           execute_on_channel(@options[:setup])
         end
 

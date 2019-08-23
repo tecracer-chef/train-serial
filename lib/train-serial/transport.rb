@@ -17,6 +17,12 @@ module TrainPlugins
 
       option :setup,          default: ""
       option :teardown,       default: ""
+      option :error_pattern,  default: "ERROR: .*$"
+      option :raw_output,     default: false
+      option :prompt_pattern, default: "[-a-zA-Z0-9]+(?:\((?:config|config-[a-z]+|vlan)\))?[#>]\s*$"
+
+      # Non documented options for development
+      option :debug_serial,   default: false
 
       def connection(_instance_opts = nil)
         @connection ||= TrainPlugins::Serial::Connection.new(@options)

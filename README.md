@@ -12,18 +12,21 @@ rake install:local
 
 ## Transport parameters
 
-| Option           | Explanation                  | Default        |
-| ---------------- | ---------------------------- | -------------- |
-| `device`         | Device to connect to         | `/dev/ttyUSB0` |
-| `baud`           | Baud rate                    | 9600           |
-| `data_bits`      | Data Bits for connection     | 8              |
-| `parity`         | Parity (:none, :even, :odd)  | :none          |
-| `stop_bits`      | Stop Bits for connection     | 1              |
-| `buffer_size`    | Number of bytes per read     | 1024           |
-| `buffer_wait`    | Wait between reads           | 250            |
-| `buffer_retries` | Retries until stopping reads | 3              |
-| `setup`          | Commands to issue first      |                |
-| `teardown`       | Commands to issue on close   |                |
+| Option           | Explanation                  | Default          |
+| ---------------- | ---------------------------- | ---------------- |
+| `device`         | Device to connect to         | `/dev/ttyUSB0`   |
+| `baud`           | Baud rate                    | `9600`           |
+| `data_bits`      | Data Bits for connection     | `8`              |
+| `parity`         | Parity (:none, :even, :odd)  | `:none`          |
+| `stop_bits`      | Stop Bits for connection     | `1`              |
+| `buffer_size`    | Number of bytes per read     | `1024`           |
+| `buffer_wait`    | Wait between reads           | `250`            |
+| `buffer_retries` | Retries until stopping reads | `3`              |
+| `setup`          | Commands to issue on open    |                  |
+| `teardown`       | Commands to issue on close   |                  |
+| `raw_output`     | Suppress stdout processing   | `false`          |
+| `error_pattern`  | Regex to match error lines   | `ERROR.*`        |
+| `prompt_pattern` | Regex to match device prompt | `[-a-zA-Z0-9]+(?:\((?:config\|config-[a-z]+\|vlan)\))?[#>]\s*$` |
 
 ## Example use
 
@@ -37,10 +40,17 @@ train  = Train.create('serial', {
               #{ENV['ENABLE_PASSWORD']}
               terminal pager 0
             ],
-            teardown: "logout",
+            teardown: "disable",
             logger:   Logger.new($stdout, level: :info)
          })
 conn   = train.connection
 result = conn.run_command("show version\n")
 conn.close
 ```
+
+## Useful Setup/Teardown Patterns
+
+| Device         | Setup                                                       | Teardown  |
+| -------------- | ----------------------------------------------------------- | --------- |
+| Cisco Catalyst | `enable\nterminal length 0\n`                               | `disable` |
+| Cisco ASA      | `enable\n#{@options[:enable_password]}\nterminal pager 0\n` | `disable` |
